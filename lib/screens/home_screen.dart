@@ -10,53 +10,62 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const twentyFiveMinutes = 3 * 1000; // 25분 == 1500초 == 1500 * 1000 밀리초
-  int totalMilliSeconds = twentyFiveMinutes;
-  int totalPomodoros = 0;
-  late DateTime startTime;
-  bool isRunning = false;
-  late Timer timer;
+  static const twentyFiveMinutes =
+      3 * 1000; // 단위시간(밀리초) 25분 == 1500초 == 1500 * 1000 밀리초
+  int totalMilliSeconds = twentyFiveMinutes; // 남은 단위시간
+  int totalPomodoros = 0; // 타이머 달성횟수
+  late DateTime startTime; // 타이머 시작시각
+  bool isRunning = false; // 타이머 동작여부
+  late Timer? timer; // ?
+  int elapsedTime = 0; // Store elapsed time when the timer is paused.
 
   void onTick(Timer timer) async {
+    if (!isRunning) return;
+    // [현재시각 - 시작시각] 밀리초단위
     int elapsedMilliseconds =
         DateTime.now().difference(startTime).inMilliseconds;
-    if (elapsedMilliseconds >= twentyFiveMinutes) {
+    // 경과된 시간이 단위 시간을 넘어섰는지 검사 + 종료처리 2번방지를 위해 isRunning사용
+    if (elapsedMilliseconds + elapsedTime >= twentyFiveMinutes) {
       // 시간종료!
       setState(() {
-        totalPomodoros = totalPomodoros + 1;
+        totalPomodoros = totalPomodoros + 1; // 람다함수로 저장하는게 맞는 방식이지 않나?
         isRunning = false;
         totalMilliSeconds = twentyFiveMinutes;
+        elapsedTime = 0;
       });
       await playMusic();
       timer.cancel(); // why not
     } else {
       setState(() {
-        totalMilliSeconds = twentyFiveMinutes - elapsedMilliseconds;
+        totalMilliSeconds =
+            twentyFiveMinutes - elapsedMilliseconds - elapsedTime;
       });
     }
   }
 
-  void onPausePressed() {
-    timer.cancel();
+  void toggleTimer() {
     setState(() {
-      isRunning = false;
-    });
-  }
+      isRunning = !isRunning;
 
-  void onStartPressed() {
-    startTime = DateTime.now();
-    timer = Timer.periodic(const Duration(milliseconds: 10),
-        onTick); // 100 milliseconds is more reasonabless
-
-    setState(() {
-      isRunning = true;
+      if (isRunning) {
+        // onStartPressed
+        startTime = DateTime.now();
+        timer = Timer.periodic(const Duration(milliseconds: 1), onTick);
+      } else {
+        // onPausePressed
+        timer?.cancel();
+        elapsedTime += DateTime.now().difference(startTime).inMilliseconds;
+      }
     });
   }
 
   void onReset() async {
     setState(() {
       totalMilliSeconds = twentyFiveMinutes;
+      isRunning = false;
+      elapsedTime = 0;
     });
+    timer?.cancel();
   }
 
   playMusic() async {
@@ -64,18 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final player = AudioPlayer();
     await player.setSource(AssetSource('boxing-bell.mp3'));
     await player.resume();
-    //await player.play(AssetSource('./boxing-bell.mp3'));
-
-    // await player.play(DeviceFileSource('./boxing-bell.mp3'));
   }
-
-  // pauseMusic() async {
-  //   player.pause();
-  // }
-
-  // stopMusic() async {
-  //   await player.stop();
-  // }
 
   String format(int milliseconds) {
     //var duration = Duration(seconds: seconds);
@@ -155,7 +153,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icon(isRunning
                         ? Icons.pause_circle_outline
                         : Icons.play_circle_outline),
-                    onPressed: isRunning ? onPausePressed : onStartPressed,
+                    //onPressed: isRunning ? onPausePressed : onStartPressed,
+                    onPressed: toggleTimer,
                   ),
                   IconButton(
                     iconSize: 120,
